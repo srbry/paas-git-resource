@@ -122,9 +122,93 @@ it_honors_the_depth_flag_for_submodules() {
   test "$(git -C $dest_one/$submodule_name rev-list --all --count)" = 1
 }
 
+it_cant_get_commit_with_invalid_key() {
+  local repo=$(init_repo)
+  local ref=$(make_commit $repo)
+  local dest=$TMPDIR/destination
+
+  set +e
+  get_uri_with_invalid_verification_key $repo $dest
+  exit_code=$?
+  set -e
+
+  test "${exit_code}" == 2
+}
+
+it_cant_get_commit_not_signed() {
+  local repo=$(init_repo)
+  local ref=$(make_commit $repo)
+  local dest=$TMPDIR/destination
+
+  set +e
+  get_uri_with_verification_key $repo $dest
+  exit_code=$?
+  set -e
+
+  test "${exit_code}" == 1
+}
+
+it_can_get_signed_commit() {
+  local repo=$(init_repo)
+  local ref=$(set -e ; make_signed_commit $repo)
+  test "$ref" != ""
+  local dest=$TMPDIR/destination
+
+  get_uri_with_verification_key $repo $dest
+
+  test -e $dest/some-file
+  test "$(git -C $dest rev-parse HEAD)" = $ref
+}
+
+it_cant_get_signed_commit_when_using_keyserver_and_bogus_key() {
+  local repo=$(init_repo)
+  local ref=$(set -e ; make_signed_commit $repo)
+  test "$ref" != ""
+  local dest=$TMPDIR/destination
+
+  set +e
+  get_uri_when_using_keyserver_and_bogus_key $repo $dest
+  exit_code=$?
+  set -e
+
+  test "${exit_code}" = 123
+}
+
+it_cant_get_signed_commit_when_using_keyserver_and_unknown_key() {
+  local repo=$(init_repo)
+  local ref=$(set -e ; make_signed_commit $repo)
+  test "$ref" != ""
+  local dest=$TMPDIR/destination
+
+  set +e
+  get_uri_when_using_keyserver_and_unknown_key $repo $dest
+  exit_code=$?
+  set -e
+
+  test "${exit_code}" = 123
+}
+
+it_can_get_signed_commit_when_using_keyserver() {
+  local repo=$(init_repo)
+  local ref=$(set -e ; make_signed_commit $repo)
+  test "$ref" != ""
+  local dest=$TMPDIR/destination
+
+  get_uri_when_using_keyserver $repo $dest
+
+  test -e $dest/some-file
+  test "$(git -C $dest rev-parse HEAD)" = $ref
+}
+
 run it_can_get_from_url
 run it_can_get_from_url_at_ref
 run it_can_get_from_url_at_branch
 run it_can_get_from_url_only_single_branch
 run it_honors_the_depth_flag
 run it_honors_the_depth_flag_for_submodules
+run it_cant_get_commit_with_invalid_key
+run it_cant_get_commit_not_signed
+run it_can_get_signed_commit
+run it_can_get_signed_commit_when_using_keyserver
+run it_cant_get_signed_commit_when_using_keyserver_and_bogus_key
+run it_cant_get_signed_commit_when_using_keyserver_and_unknown_key
