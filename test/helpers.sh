@@ -5,6 +5,9 @@ set -e -u
 set -o pipefail
 
 resource_dir=/opt/resource
+test_dir=/opt/resource-tests
+keygrip=276D99F5B65388AF85DF54B16B08EF0A44C617AC
+fingerprint=A3E20CD6371D49E244B0730D1CDD25AEB0F5F8EF
 
 run() {
   export TMPDIR=$(mktemp -d ${TMPDIR_ROOT}/git-tests.XXXXXX)
@@ -95,6 +98,67 @@ make_commit() {
 
 make_commit_to_be_skipped() {
   make_commit_to_file $1 some-file "[ci skip]"
+}
+
+setup_gpg() {
+  # Configure gpg
+  mkdir -p ~/.gnupg
+  cp ${test_dir}/gpg/conf/gpg-agent.conf ~/.gnupg
+  gpg-connect-agent reloadagent /bye > /dev/null
+}
+
+import_private_key() {
+  # Import private key
+  gpg --pinentry-mode loopback --allow-secret-key-import \
+    --passphrase "secret123" --batch --import ${test_dir}/gpg/private.key
+
+  # Preload private key passphrase
+  echo secret123 | /usr/libexec/gpg-preset-passphrase \
+    --preset ${keygrip}
+}
+
+delete_private_key() {
+  gpg --batch --yes --delete-secret-keys ${fingerprint}
+}
+
+delete_public_key() {
+  if gpg -k ${fingerprint} > /dev/null; then
+    gpg --batch --yes --delete-keys ${fingerprint}
+  fi
+}
+
+make_signed_commit() {
+  local repo=$1
+  local key=B0F5F8EF
+  local file=some-file
+  local branch=master
+  local msg="Test message"
+
+  setup_gpg
+  import_private_key
+
+  # ensure branch exists
+  if ! git -C $repo rev-parse --verify $branch >/dev/null; then
+    git -C $repo branch $branch master
+  fi
+
+  # switch to branch
+  git -C $repo checkout -q $branch
+
+  # modify file and commit
+  echo x >> $repo/$file
+  git -C $repo add $file
+  git -C $repo \
+    -c user.name='test' \
+    -c user.email='test@example.com' \
+    commit -q --gpg-sign=${key} \
+    -m "commit $(wc -l $repo/$file) $msg"
+
+  delete_private_key
+  delete_public_key
+
+  # output resulting sha
+  git -C $repo rev-parse HEAD
 }
 
 make_empty_commit() {
@@ -359,6 +423,68 @@ get_uri_with_config() {
   }" | ${resource_dir}/in "$2" | tee /dev/stderr
 }
 
+get_uri_with_verification_key() {
+  jq -n "{
+    source: {
+      uri: $(echo $1 | jq -R .),
+      commit_verification_keys: [\"$(cat ${test_dir}/gpg/public.key)\"]
+    }
+  }" | ${resource_dir}/in "$2" | tee /dev/stderr
+  exit_code=$?
+  delete_public_key
+  return ${exit_code}
+}
+
+get_uri_with_invalid_verification_key() {
+  jq -n "{
+    source: {
+      uri: $(echo $1 | jq -R .),
+      commit_verification_keys: [\"abcd\"]
+    }
+  }" | ${resource_dir}/in "$2" | tee /dev/stderr
+}
+
+get_uri_with_unknown_verification_key() {
+  jq -n "{
+    source: {
+      uri: $(echo $1 | jq -R .),
+      commit_verification_keys: [\"$(cat ${test_dir}/gpg/unknown_public.key)\"]
+    }
+  }" | ${resource_dir}/in "$2" | tee /dev/stderr
+  exit_code=$?
+  delete_public_key
+  return ${exit_code}
+}
+
+get_uri_when_using_keyserver() {
+  jq -n "{
+    source: {
+      uri: $(echo $1 | jq -R .),
+      commit_verification_key_ids: [\"A3E20CD6371D49E244B0730D1CDD25AEB0F5F8EF\"]
+    }
+  }" | ${resource_dir}/in "$2" | tee /dev/stderr
+  exit_code=$?
+  delete_public_key
+  return ${exit_code}
+}
+
+get_uri_when_using_keyserver_and_bogus_key() {
+  jq -n "{
+    source: {
+      uri: $(echo $1 | jq -R .),
+      commit_verification_key_ids: [\"abcd\"]
+    }
+  }" | ${resource_dir}/in "$2" | tee /dev/stderr
+}
+
+get_uri_when_using_keyserver_and_unknown_key() {
+  jq -n "{
+    source: {
+      uri: $(echo $1 | jq -R .),
+      commit_verification_key_ids: [\"24C51CCE1AB7B2EFEF72B9A48EAB0B8DEE26E5FD\"]
+    }
+  }" | ${resource_dir}/in "$2" | tee /dev/stderr
+}
 
 put_uri() {
   jq -n "{
