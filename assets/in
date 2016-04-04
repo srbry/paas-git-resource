@@ -2,7 +2,6 @@
 # vim: set ft=sh
 
 set -e
-
 exec 3>&1 # make stdout available as fd 3 for the result
 exec 1>&2 # redirect all output to stderr for logging
 
@@ -31,6 +30,9 @@ ref=$(jq -r '.version.ref // "HEAD"' < $payload)
 depth=$(jq -r '(.params.depth // 0)' < $payload)
 fetch=$(jq -r '(.params.fetch // [])[]' < $payload)
 submodules=$(jq -r '(.params.submodules // "all")' < $payload)
+tag_verification_key_ids=$(jq -r '(.source.tag_verification_key_ids // [])[]' < $payload)
+tag_verification_keys=$(jq -r '(.source.tag_verification_keys // [])[]' < $payload)
+gpg_keyserver=$(jq -r '.source.gpg_keyserver // "hkp://pgp.mit.edu/"' < $payload)
 
 if [ -z "$uri" ]; then
   echo "invalid payload (missing uri):" >&2
@@ -53,6 +55,17 @@ git clone --single-branch $depthflag $uri $branchflag $destination
 cd $destination
 
 git checkout -q $ref
+
+if [ ! -z "${tag_verification_keys}" ] || [ ! -z "${tag_verification_key_ids}" ] ; then
+  if [ ! -z "${tag_verification_keys}" ]; then
+  	echo "${tag_verification_keys}" | gpg --batch --import
+  fi
+  echo "${tag_verification_key_ids}" | \
+    xargs --no-run-if-empty -n1 gpg --batch --keyserver $gpg_keyserver --recv-keys
+  git tag -l --points-at $ref | \
+    xargs -n1 git tag -v
+fi
+
 git lfs fetch
 git lfs checkout
 git log -1 --oneline
