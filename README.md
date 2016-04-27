@@ -50,6 +50,17 @@ Tracks the commits in a [git](http://git-scm.com/) repository.
   See the [`git-config(1)` manual page](https://www.kernel.org/pub/software/scm/git/docs/git-config.html)
   for more information and documentation of existing git options.
 
+* `commit_verification_keys`: *Optional*. Array of GPG public keys that the
+  resource will check against to verify the commit.
+
+* `commit_verification_key_ids`: *Optional*. Array of GPG public key ids that
+  the resource will check against to verify the commit. The resource will fetch
+  the public keys from the key server specified in `gpg_keyserver`. The ids can
+  be short id, long id or fingerprint.
+
+* `gpg_keyserver`: *Optional*. GPG keyserver to download the public keys from.
+  Defaults to `hkp://pgp.mit.edu/`.
+
 ### Example
 
 Resource configuration for a private repo:
