@@ -435,6 +435,26 @@ get_uri_with_verification_key() {
   return ${exit_code}
 }
 
+get_uri_with_verification_key_and_tag_filter() {
+  local uri=$1
+  local dest=$2
+  local tag_filter=$3
+  local version=$4
+  jq -n "{
+    source: {
+      uri: $(echo $uri | jq -R .),
+      commit_verification_keys: [\"$(cat ${test_dir}/gpg/public.key)\"],
+      tag_filter: $(echo $tag_filter | jq -R .)
+    },
+    version: {
+      ref: $(echo $version | jq -R .)
+    }
+  }" | ${resource_dir}/in "$dest" | tee /dev/stderr
+  exit_code=$?
+  delete_public_key
+  return ${exit_code}
+}
+
 get_uri_with_invalid_verification_key() {
   jq -n "{
     source: {

@@ -76,7 +76,7 @@ if [ ! -z "${commit_verification_keys}" ] || [ ! -z "${commit_verification_key_i
     echo "${commit_verification_key_ids}" | \
       xargs --no-run-if-empty -n1 gpg --batch --keyserver $gpg_keyserver --recv-keys
   fi
-  git verify-commit $ref || commit_not_signed
+  git verify-commit $(git rev-list -n 1 $ref) || commit_not_signed
 fi
 
 git lfs fetch

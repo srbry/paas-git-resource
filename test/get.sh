@@ -175,6 +175,18 @@ it_can_get_signed_commit() {
   test "$(git -C $dest rev-parse HEAD)" = $ref
 }
 
+it_can_get_signed_commit_via_tag() {
+  local repo=$(init_repo)
+  local commit=$(set -e ; make_signed_commit $repo)
+  local ref=$(make_annotated_tag $repo 'test-0.0.1' 'a message')
+  local dest=$TMPDIR/destination
+
+  get_uri_with_verification_key_and_tag_filter $repo $dest 'test-*' $ref
+
+  test -e $dest/some-file
+  test "$(git -C $dest rev-parse HEAD)" = $commit
+}
+
 it_cant_get_commit_signed_with_unknown_key() {
   local repo=$(init_repo)
   local ref=$(set -e ; make_signed_commit $repo)
@@ -247,3 +259,4 @@ run it_cant_get_commit_signed_with_unknown_key
 run it_cant_get_signed_commit_when_using_keyserver_and_bogus_key
 run it_cant_get_signed_commit_when_using_keyserver_and_unknown_key_id
 run it_can_get_signed_commit_when_using_keyserver
+run it_can_get_signed_commit_via_tag
