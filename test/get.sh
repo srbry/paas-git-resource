@@ -175,6 +175,19 @@ it_can_get_signed_commit() {
   test "$(git -C $dest rev-parse HEAD)" = $ref
 }
 
+it_can_get_signed_commit_via_tag() {
+  local repo=$(init_repo)
+  local commit=$(set -e ; make_signed_commit $repo)
+  local ref=$(make_annotated_tag $repo 'test-0.0.1' 'a message')
+  test "$ref" != ""
+  local dest=$TMPDIR/destination
+
+  get_uri_with_verification_key_and_tag_filter $repo $dest 'test-*'
+
+  test -e $dest/some-file
+  test "$(git -C $dest rev-parse HEAD)" = $ref
+}
+
 it_cant_get_commit_signed_with_unknown_key() {
   local repo=$(init_repo)
   local ref=$(set -e ; make_signed_commit $repo)
