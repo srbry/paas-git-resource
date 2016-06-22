@@ -120,6 +120,17 @@ make_annotated_tag() {
   git -C $repo describe --tags --abbrev=0
 }
 
+merge_branch_to_master() {
+  local repo=$1
+  local branch=$2
+
+  git -C $repo checkout master
+  git -C $repo merge --no-ff -q -m "Merge ${branch}" $branch
+
+  # output resulting sha
+  git -C $repo rev-parse HEAD
+}
+
 check_uri() {
   jq -n "{
     source: {
